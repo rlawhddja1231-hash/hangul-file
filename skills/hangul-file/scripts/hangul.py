@@ -18,7 +18,7 @@
 준비물: pip install --break-system-packages python-hwpx olefile
         (미리 보기 그림은 playwright 또는 wkhtmltoimage 가 있으면 PNG, 없으면 HTML)
 
-python-hwpx(Apache-2.0, https://github.com/airmang/python-hwpx) 위에서 돈다.
+python-hwpx(Apache-2.0, 깃허브 airmang/python-hwpx) 위에서 돈다. 출처는 README 참고.
 """
 import argparse
 import csv
