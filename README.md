@@ -14,6 +14,9 @@ Claude는 워드 파일은 잘 다루지만 한글 파일은 잘 못 읽습니�
 | "이 명단대로 한 장씩 만들어 줘" | 엑셀 명단(.xlsx 그대로, CSV도 됨)으로 사람마다 한 파일씩 |
 | "이 내용으로 한글 문서 만들어 줘" | 제목·표·글머리표·그림이 있는 새 .hwpx 문서 |
 | "hwp로 바꿔 줘" | hwp ↔ hwpx 바꾸기 |
+| "PDF로 줘" | 한컴과 거의 같은 모양의 PDF |
+| "고치기 전이랑 뭐가 바뀌었어?" | 두 판에서 바뀐 문단과 글자 |
+| "주민번호랑 전화번호 가려 줘" | 주민번호·전화·이메일·계좌·이름을 ●로 가림 |
 
 깨진 파일을 주지 않도록, 한글이 못 열 것 같은 결과는 **저장하지 않고 이유를 알려 줍니다.**
 
@@ -34,6 +37,8 @@ Claude 앱(claude.ai)에서는 `skills/hangul-file` 폴더를 압축해 **설정
 pip install python-hwpx olefile openpyxl pillow
 ```
 
+미리 보기와 PDF는 node + playwright(크로미움)를 쓰고, 그리기 엔진 [rhwp](https://github.com/edwardkim/rhwp)(@rhwp/core)는 처음 쓸 때 자동으로 받습니다.
+
 ## 시험 결과 (2026-10-24 ~ 25)
 
 - **공개 한글 파일 2,798개 대량 시험**: 파일마다 읽기 → 고치기 → 저장 → 다시 읽기. 읽은 2,703개 모두 고친 곳 말고는 글자가 하나도 안 바뀜. 못 연 것은 한글 3.0(1997년 이전)·암호·배포용·깨진 파일이고, 이때는 쉬운 말로 이유와 해결 방법을 알려 줌
@@ -46,7 +51,8 @@ pip install python-hwpx olefile openpyxl pillow
 ## 못 하는 것
 
 - 암호가 걸린 파일, 배포용(읽기 전용) 파일
-- 한글 프로그램 화면과 똑같은 미리 보기 (비슷한 모양만)
+- 한컴 화면과 100% 똑같은 미리 보기·PDF (글꼴에 따라 줄바꿈이 조금 다를 수 있음)
+- 그림 속 글자의 개인정보 가리기
 - 일부 특수 필드가 든 옛 .hwp 저장 → 한글에서 HWPX로 저장한 파일을 주면 됩니다
 
 ## 직접 써 보기 (명령어)
@@ -61,13 +67,16 @@ python3 skills/hangul-file/scripts/hangul.py new     원고.md --out 문서.hwpx
 python3 skills/hangul-file/scripts/hangul.py convert 문서.hwp 문서.hwpx
 python3 skills/hangul-file/scripts/hangul.py check   문서.hwpx
 python3 skills/hangul-file/scripts/hangul.py preview 문서.hwpx
+python3 skills/hangul-file/scripts/hangul.py pdf     문서.hwp --out 문서.pdf
+python3 skills/hangul-file/scripts/hangul.py diff    앞판.hwp 새판.hwp
+python3 skills/hangul-file/scripts/hangul.py redact  문서.hwp --words 홍길동 --dry
 ```
 
 `examples/` 폴더에 원고와 양식 예시가 있습니다.
 
 ## 고마운 곳
 
-문서를 읽고 쓰는 핵심은 [python-hwpx](https://github.com/airmang/python-hwpx) (Apache-2.0)가 합니다. 이 플러그인은 그 위에 한국어 사용법, 양식 채우기, 한글 이름 빈칸 여러 장 만들기, 마크다운 문서 만들기, 큰 .hwp 예비 읽기, 안전 저장을 더했습니다.
+문서를 읽고 쓰는 핵심은 [python-hwpx](https://github.com/airmang/python-hwpx) (Apache-2.0)가, 쪽 그림과 PDF는 [rhwp](https://github.com/edwardkim/rhwp) (MIT)가 합니다. 이 플러그인은 그 위에 한국어 사용법, 양식 채우기, 한글 이름 빈칸 여러 장 만들기, 마크다운 문서 만들기, 큰 .hwp 예비 읽기, 안전 저장을 더했습니다.
 
 "한글", "한컴오피스"는 (주)한글과컴퓨터의 상표입니다. 이 플러그인은 한글과컴퓨터와 관계없는 개인 프로젝트입니다.
 
