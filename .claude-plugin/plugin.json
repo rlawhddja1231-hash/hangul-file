@@ -1,6 +1,6 @@
 {
   "name": "hangul-file",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "한컴오피스 한글 문서(.hwp, .hwpx)를 한글 프로그램 없이 읽고, 고치고, 양식을 채우고, 새로 만드는 Claude 플러그인",
   "author": {
     "name": "hangul-file contributors"

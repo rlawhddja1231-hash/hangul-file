@@ -8,7 +8,7 @@
       "name": "hangul-file",
       "source": "./",
       "description": "한글 문서(.hwp, .hwpx)를 읽고, 고치고, 양식을 채우고, 새로 만드는 플러그인",
-      "version": "0.1.0"
+      "version": "0.2.0"
     }
   ]
 }
