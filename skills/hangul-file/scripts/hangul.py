@@ -10,7 +10,10 @@
   python3 hangul.py new     원고.md [--out 문서.hwpx]      # 마크다운 원고로 새 한글 문서
   python3 hangul.py convert 문서.hwp 문서.hwpx           # 형식 바꾸기 (hwp <-> hwpx)
   python3 hangul.py check   문서.hwpx                    # 한글에서 열릴지 구조 검사
-  python3 hangul.py preview 문서.hwpx [--out 폴더]        # 쪽 그림(PNG)으로 미리 보기
+  python3 hangul.py preview 문서.hwpx [--out 폴더]        # 쪽 그림(PNG)으로 미리 보기 (rhwp 엔진, 한컴과 거의 같음)
+  python3 hangul.py pdf     문서.hwp [--out 문서.pdf]      # 한글 → PDF
+  python3 hangul.py diff    앞판.hwp 새판.hwp              # 두 판에서 바뀐 곳
+  python3 hangul.py redact  문서.hwp [--words 홍길동] [--dry]  # 주민번호·전화·이메일·계좌 가리기
 
 준비물: pip install --break-system-packages python-hwpx olefile
         (미리 보기 그림은 playwright 또는 wkhtmltoimage 가 있으면 PNG, 없으면 HTML)
@@ -1163,7 +1166,91 @@ def cmd_check(a):
 
 
 # ------------------------------------------------------------ preview
+# ------------------------------------------------------------ rhwp (정확한 쪽 그림·PDF)
+RHWP_VERSION = "0.8.7"
+
+
+def _rhwp_core():
+    """@rhwp/core(MIT) 를 찾거나 한 번 설치한다. 못 하면 None."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    cands = [os.environ.get("RHWP_CORE", ""), os.path.join(here, "node_modules", "@rhwp", "core"),
+             os.path.join(os.path.expanduser("~"), ".cache", "hangul-file", "node_modules", "@rhwp", "core")]
+    for c in cands:
+        if c and os.path.exists(os.path.join(c, "rhwp_bg.wasm")):
+            return c
+    if not shutil.which("npm") or not shutil.which("node"):
+        return None
+    cache = os.path.join(os.path.expanduser("~"), ".cache", "hangul-file")
+    os.makedirs(cache, exist_ok=True)
+    try:
+        if not os.path.exists(os.path.join(cache, "package.json")):
+            with open(os.path.join(cache, "package.json"), "w") as f:
+                f.write('{"name":"hangul-file-cache","private":true}')
+        subprocess.run(["npm", "install", "--silent", "--no-audit", "--no-fund", f"@rhwp/core@{RHWP_VERSION}"],
+                       cwd=cache, capture_output=True, timeout=300)
+    except Exception:
+        return None
+    c = os.path.join(cache, "node_modules", "@rhwp", "core")
+    return c if os.path.exists(os.path.join(c, "rhwp_bg.wasm")) else None
+
+
+def _rhwp_run(mode, src, out, max_pages=None):
+    """rhwp 로 그린다. 성공하면 결과 dict, 못 하면 None(이유는 stderr)."""
+    core = _rhwp_core()
+    if not core or not shutil.which("node"):
+        return None
+    js = os.path.join(os.path.dirname(os.path.abspath(__file__)), "render.mjs")
+    env = dict(os.environ, RHWP_CORE=core)
+    gnode = subprocess.run(["npm", "root", "-g"], capture_output=True, text=True).stdout.strip()
+    if gnode:
+        env["NODE_PATH"] = gnode + (os.pathsep + env["NODE_PATH"] if env.get("NODE_PATH") else "")
+    cmd = ["node", js, mode, os.path.abspath(src), os.path.abspath(out)]
+    if max_pages:
+        cmd.append(str(max_pages))
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=600, env=env)
+    except Exception as e:
+        print(f"(정확한 그리기 실패: {e})", file=sys.stderr)
+        return None
+    line = (p.stdout.strip().splitlines() or [""])[-1]
+    if p.returncode != 0 or not line.startswith("{"):
+        print(f"(정확한 그리기 실패: {(p.stderr or p.stdout).strip()[-300:]})", file=sys.stderr)
+        return None
+    return json.loads(line)
+
+
 def cmd_preview(a):
+    src = a.file
+    if _kind(src) not in ("hwp", "hwpx"):
+        raise SystemExit(f"한글 파일(.hwp, .hwpx)이 아닙니다: {src}")
+    out = a.out or (os.path.splitext(os.path.basename(a.file))[0] + "_미리보기")
+    if not a.rough:
+        r = _rhwp_run("png", src, out, a.pages)
+        if r:
+            print(json.dumps({"폴더": out, "쪽 수": r["pages"], "만든 파일": r["made"],
+                              "방식": "정확한 그리기(rhwp 엔진) — 한컴 화면과 거의 같습니다. 글꼴만 조금 다를 수 있습니다."},
+                             ensure_ascii=False, indent=2))
+            return
+    _preview_rough(a, out)
+
+
+def cmd_pdf(a):
+    src = a.file
+    if _kind(src) not in ("hwp", "hwpx"):
+        raise SystemExit(f"한글 파일(.hwp, .hwpx)이 아닙니다: {src}")
+    out = a.out or (os.path.splitext(os.path.basename(src))[0] + ".pdf")
+    if not out.lower().endswith(".pdf"):
+        out += ".pdf"
+    r = _rhwp_run("pdf", src, out)
+    if not r:
+        raise SystemExit("PDF로 바꾸려면 node 와 playwright(크로미움)가 필요합니다. "
+                         "작업 공간에 없으면 'npm i -g playwright' 후 다시 해 보세요.")
+    print(json.dumps({"저장": out, "쪽 수": r["pages"], "크기(KB)": round(os.path.getsize(out) / 1024, 1),
+                      "방식": "rhwp 엔진으로 그린 PDF — 한컴 화면과 거의 같습니다. 글꼴만 조금 다를 수 있습니다."},
+                     ensure_ascii=False, indent=2))
+
+
+def _preview_rough(a, out):
     _need_lib()
     from hwpx.tools.layout_preview import render_layout_preview
     src = a.file
@@ -1173,7 +1260,6 @@ def cmd_preview(a):
         tmp = os.path.splitext(os.path.basename(src))[0] + "_미리보기용.hwpx"
         doc.save_to_path(tmp)
         src = tmp
-    out = a.out or (os.path.splitext(os.path.basename(a.file))[0] + "_미리보기")
     os.makedirs(out, exist_ok=True)
     pv = render_layout_preview(src, mode="pages")
     pages = pv.page_html_documents
@@ -1193,8 +1279,112 @@ def cmd_preview(a):
     if tmp and os.path.exists(tmp):
         os.remove(tmp)
     print(json.dumps({"폴더": out, "쪽 수": len(pages), "만든 파일": made,
-                      "뜻": "한글 프로그램 화면과 똑같지는 않은 '비슷한 모양' 미리 보기입니다.",
+                      "방식": "대충 그리기 — 글머리표·표 선이 안 보일 수 있습니다(파일에는 들어 있음).",
                       "경고": [str(w)[:120] for w in (pv.warnings or [])][:5]}, ensure_ascii=False, indent=2))
+
+
+# ------------------------------------------------------------ diff (두 판 비교)
+def _para_texts(doc):
+    out = []
+    for p in _iter_all_paragraphs(doc):
+        try:
+            t = (p.text or "").strip()
+        except Exception:
+            continue
+        if t:
+            out.append(t)
+    return out
+
+
+def cmd_diff(a):
+    import difflib
+    old = _para_texts(_open(a.old))
+    new = _para_texts(_open(a.new))
+    sm = difflib.SequenceMatcher(a=old, b=new, autojunk=False)
+    changes = []
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            continue
+        if tag == "replace" and (i2 - i1) == (j2 - j1):
+            for k in range(i2 - i1):
+                o, n = old[i1 + k], new[j1 + k]
+                changes.append({"종류": "바뀜", "전": o[:300], "후": n[:300], "바뀐 부분": _inline_diff(o, n)})
+            continue
+        for k in range(i1, i2):
+            changes.append({"종류": "지워짐", "전": old[k][:300]})
+        for k in range(j1, j2):
+            changes.append({"종류": "새로 생김", "후": new[k][:300]})
+    print(json.dumps({"앞 판": os.path.basename(a.old), "새 판": os.path.basename(a.new),
+                      "앞 판 문단": len(old), "새 판 문단": len(new),
+                      "바뀐 곳 수": len(changes), "같음": not changes, "바뀐 곳": changes[: a.max]},
+                     ensure_ascii=False, indent=2))
+
+
+def _inline_diff(o, n):
+    import difflib
+    parts = []
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(a=o, b=n, autojunk=False).get_opcodes():
+        if tag == "equal":
+            continue
+        parts.append(f"[{o[i1:i2]}] → [{n[j1:j2]}]" if tag == "replace" else
+                     (f"[{o[i1:i2]}] 지움" if tag == "delete" else f"[{n[j1:j2]}] 넣음"))
+    return parts[:10]
+
+
+# ------------------------------------------------------------ redact (개인정보 가리기)
+REDACT_RULES = [
+    ("주민등록번호", re.compile(r"(?<!\d)(\d{6})\s?-\s?([1-8])(\d{6})(?!\d)"),
+     lambda m: f"{m.group(1)}-{m.group(2)}●●●●●●"),
+    ("외국인·법인번호처럼 13자리", re.compile(r"(?<!\d)(\d{6})([1-8])(\d{6})(?!\d)"),
+     lambda m: f"{m.group(1)}{m.group(2)}●●●●●●"),
+    ("휴대전화", re.compile(r"(?<!\d)(01[016789])[-. ]?(\d{3,4})[-. ]?(\d{4})(?!\d)"),
+     lambda m: f"{m.group(1)}-●●●●-{m.group(3)}"),
+    ("일반전화", re.compile(r"(?<!\d)(0(?:2|[3-6][1-5]|70))[-. )]\s?(\d{3,4})[-. ](\d{4})(?!\d)"),
+     lambda m: f"{m.group(1)}-●●●●-{m.group(3)}"),
+    ("이메일", re.compile(r"([A-Za-z0-9._%+-]{1,3})[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\.[A-Za-z]{2,})"),
+     lambda m: f"{m.group(1)}●●●@{m.group(2)}"),
+    ("계좌번호처럼 보이는 숫자", re.compile(r"(?<![\d-])(\d{2,6})-(\d{2,6})-(\d{2,7})(?:-(\d{1,3}))?(?![\d-])"),
+     lambda m: f"{m.group(1)}-●●●●-●●●●" + ("-●●" if m.group(4) else "")),
+]
+
+
+def cmd_redact(a):
+    doc = _open(a.file)
+    text = "\n".join(_para_texts(doc))
+    try:
+        text += "\n" + doc.export_text()
+    except Exception:
+        pass
+    plan, seen = [], set()
+    rules = [r for r in REDACT_RULES if not a.only or any(k in r[0] for k in a.only)]
+    for name, rx, fn in rules:
+        for m in rx.finditer(text):
+            src = m.group(0)
+            if src in seen or "●" in src:
+                continue
+            if name.startswith("계좌") and re.match(r"^(19|20)\d{2}-\d{1,2}-\d{1,2}$", src):
+                continue  # 날짜(2026-10-25)는 계좌가 아님
+            seen.add(src)
+            plan.append((name, src, fn(m)))
+    for w in a.words or []:
+        if w and w not in seen and w in text:
+            seen.add(w)
+            plan.append(("지정 낱말", w, w[0] + "●" * (len(w) - 1) if len(w) > 1 else "●"))
+    if a.dry:
+        print(json.dumps({"가릴 곳(미리 보기)": [{"종류": n, "원래": s, "바뀔 모양": t} for n, s, t in plan]},
+                         ensure_ascii=False, indent=2))
+        return
+    done = []
+    for name, src, to in plan:
+        n = _replace_everywhere(doc, src, to)
+        done.append({"종류": name, "바뀔 모양": to, "곳": n})
+    out = a.out or _default_out(a.file, "가림")
+    notes = _save(doc, out, a.file)
+    left = [n for n, rx, _ in rules if any("●" not in m.group(0) for m in rx.finditer("\n".join(_para_texts(_open(out)))))]
+    print(json.dumps({"저장": out, "가린 곳": done, "가린 종류 수": len(done),
+                      "아직 남은 것 같은 종류": left, "주의": notes +
+                      ["그림 속 글자, 문서 정보(작성자 등)는 가리지 않습니다. 보내기 전에 미리 보기로 한 번 확인하세요."]},
+                     ensure_ascii=False, indent=2))
 
 
 def _html_to_png(html_path, png_path):
@@ -1233,7 +1423,13 @@ def main():
     s = sub.add_parser("convert"); s.add_argument("file"); s.add_argument("out", nargs="?"); s.set_defaults(fn=cmd_convert)
     s = sub.add_parser("check"); s.add_argument("file"); s.add_argument("--out"); s.set_defaults(fn=cmd_check)
     s = sub.add_parser("preview"); s.add_argument("file"); s.add_argument("--out"); s.add_argument("--pages", type=int, default=10)
-    s.set_defaults(fn=cmd_preview)
+    s.add_argument("--rough", action="store_true", help="rhwp 없이 대충 그리기"); s.set_defaults(fn=cmd_preview)
+    s = sub.add_parser("pdf"); s.add_argument("file"); s.add_argument("--out"); s.set_defaults(fn=cmd_pdf)
+    s = sub.add_parser("diff"); s.add_argument("old"); s.add_argument("new"); s.add_argument("--max", type=int, default=100)
+    s.set_defaults(fn=cmd_diff)
+    s = sub.add_parser("redact"); s.add_argument("file"); s.add_argument("--out")
+    s.add_argument("--words", nargs="*", help="더 가릴 낱말(이름 등)"); s.add_argument("--only", nargs="*", help="이 종류만 (예: 주민 휴대)")
+    s.add_argument("--dry", action="store_true", help="바꾸지 않고 가릴 곳만 보기"); s.set_defaults(fn=cmd_redact)
 
     a = ap.parse_args()
     try:
