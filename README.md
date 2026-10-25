@@ -1,6 +1,12 @@
+<p align="center"><img src="assets/icon-256.png" width="120" alt="한글 파일 플러그인 아이콘"></p>
+
 # 한글 파일 플러그인 (hangul-file)
 
-Claude가 **한컴오피스 한글 문서(.hwp, .hwpx)** 를 한글 프로그램 없이 다루게 해 주는 무료 플러그인입니다.
+**Claude가 한컴오피스 한글 문서(.hwp, .hwpx)를 한글 프로그램 없이 읽고, 고치고, 양식을 채우고, 새로 만들게 해 주는 무료 플러그인입니다.**
+
+> **English**: A free Claude plugin for Korean Hangul word-processor files (.hwp / .hwpx). Read, edit, fill government forms, mail-merge from Excel, create new documents, convert to PDF, compare versions and mask personal data — no Hancom Office needed. Tested on 2,798 public HWP files and 149 real government forms.
+
+<p align="center"><img src="assets/preview-form.png" width="420" alt="미리 보기 예시 — 관공서 서식"><br><sub>이 플러그인으로 그린 관공서 서식 미리 보기 (rhwp 엔진)</sub></p>
 
 Claude는 워드 파일은 잘 다루지만 한글 파일은 잘 못 읽습니다. 이 플러그인을 넣으면 학교·관공서·회사 서류를 Claude에게 그대로 올려서 일을 시킬 수 있습니다.
 
