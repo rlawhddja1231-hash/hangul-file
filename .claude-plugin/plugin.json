@@ -3,8 +3,24 @@
   "version": "0.2.0",
   "description": "한컴오피스 한글 문서(.hwp, .hwpx)를 한글 프로그램 없이 읽고, 고치고, 양식을 채우고, 새로 만드는 Claude 플러그인",
   "author": {
-    "name": "hangul-file contributors"
+    "name": "rlawhddja1231-hash",
+    "url": "https://github.com/rlawhddja1231-hash"
   },
   "license": "MIT",
-  "keywords": ["hwp", "hwpx", "한글", "한컴", "korean", "document"]
+  "keywords": [
+    "hwp",
+    "hwpx",
+    "hangul",
+    "한글",
+    "한컴",
+    "korean",
+    "document",
+    "pdf",
+    "form-fill",
+    "mail-merge"
+  ],
+  "displayName": "한글 파일 (HWP/HWPX)",
+  "homepage": "https://github.com/rlawhddja1231-hash/hangul-file",
+  "repository": "https://github.com/rlawhddja1231-hash/hangul-file",
+  "icon": "./.claude-plugin/icon.png"
 }

@@ -1,7 +1,8 @@
 {
   "name": "hangul-file",
+  "description": "한컴오피스 한글(.hwp/.hwpx) 문서를 다루는 Claude 플러그인 모음",
   "owner": {
-    "name": "hangul-file contributors"
+    "name": "rlawhddja1231-hash"
   },
   "plugins": [
     {
