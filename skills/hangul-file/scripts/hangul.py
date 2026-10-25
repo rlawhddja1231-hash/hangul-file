@@ -1200,7 +1200,11 @@ def _rhwp_run(mode, src, out, max_pages=None):
     if not core or not shutil.which("node"):
         return None
     js = os.path.join(os.path.dirname(os.path.abspath(__file__)), "render.mjs")
-    env = dict(os.environ, RHWP_CORE=core)
+    # node 에는 꼭 필요한 값만 넘긴다(비밀 값이 든 환경 변수는 넘기지 않음).
+    keep = ("PATH", "HOME", "USERPROFILE", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "TMPDIR",
+            "LANG", "LC_ALL", "APPDATA", "LOCALAPPDATA", "PLAYWRIGHT_BROWSERS_PATH", "NODE_PATH")
+    env = {k: os.environ[k] for k in keep if k in os.environ}
+    env["RHWP_CORE"] = core
     gnode = subprocess.run(["npm", "root", "-g"], capture_output=True, text=True).stdout.strip()
     if gnode:
         env["NODE_PATH"] = gnode + (os.pathsep + env["NODE_PATH"] if env.get("NODE_PATH") else "")

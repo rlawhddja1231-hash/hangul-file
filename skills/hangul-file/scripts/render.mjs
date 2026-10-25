@@ -45,10 +45,10 @@ try {
   });
   await page.goto('https://rhwp.local/');
   const info = await page.evaluate(async (b64) => {
-    const mod = await import('https://rhwp.local/rhwp.js');
+    const mod = await import('./rhwp.js'); // 위 page.route 가 이 파일 옆의 @rhwp/core 에서 내어 줌
     const c = document.createElement('canvas').getContext('2d');
     globalThis.measureTextWidth = (font, text) => { c.font = font; return c.measureText(text).width; };
-    await mod.default({ module_or_path: 'https://rhwp.local/rhwp_bg.wasm' });
+    await mod.default({ module_or_path: './rhwp_bg.wasm' });
     const bytes = Uint8Array.from(atob(b64), (x) => x.charCodeAt(0));
     globalThis.__doc = new mod.HwpDocument(bytes);
     return { pages: globalThis.__doc.pageCount() };
